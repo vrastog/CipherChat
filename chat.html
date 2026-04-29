@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CipherChat</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&family=DM+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+:root{
+  --teal:#0A9DAE;--teal-dark:#077A88;--teal-lt:#E6F7F9;--teal-mid:#B2E4EA;
+  --dark:#0A1A1C;--dark2:#0D1F2D;--white:#fff;--off:#F7FAFA;
+  --muted:#607A7D;--border:#D4EDEF;--red:#E84040;--green:#25D366;
+  --amber:#FBBF24;--blue:#53BDEB;--purple:#A78BFA;
+  --bubble-you:#DCF8C6;--bubble-them:#fff;
+  --sidebar:260px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--off);color:var(--dark);height:100vh;display:flex;overflow:hidden}
+
+/* ── SIDEBAR ─────────────────────────────────────────────────── */
+.sidebar{width:var(--sidebar);background:var(--white);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-header{padding:16px;border-bottom:1px solid var(--border)}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--dark);display:flex;align-items:center;gap:8px}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--teal)}
+.sidebar-user{padding:12px 16px;background:var(--teal-lt);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:14px;flex-shrink:0}
+.user-info .name{font-size:14px;font-weight:500}
+.user-info .you-tag{font-size:11px;color:var(--muted)}
+.sidebar-section{padding:10px 16px 6px;font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.user-list{flex:1;overflow-y:auto}
+.user-item{padding:12px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:.15s;border-bottom:1px solid rgba(212,237,239,.5)}
+.user-item:hover{background:var(--teal-lt)}
+.user-item.active{background:var(--teal-lt);border-left:3px solid var(--teal)}
+.user-item .av{width:38px;height:38px;border-radius:50%;background:var(--teal-mid);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:var(--teal-dark);flex-shrink:0;position:relative}
+.online-dot{position:absolute;bottom:1px;right:1px;width:10px;height:10px;border-radius:50%;background:var(--green);border:2px solid #fff}
+.user-item .uname{font-size:14px;font-weight:500}
+.user-item .status{font-size:11px;color:var(--muted)}
+.no-users{padding:24px 16px;text-align:center;font-size:13px;color:var(--muted)}
+.logout-btn{padding:14px 16px;border-top:1px solid var(--border);cursor:pointer;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;transition:.15s}
+.logout-btn:hover{color:var(--red)}
+
+/* ── MAIN ─────────────────────────────────────────────────────── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--muted)}
+.empty-icon{width:80px;height:80px;border-radius:50%;background:var(--teal-lt);display:flex;align-items:center;justify-content:center;font-size:36px}
+.empty-state h3{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--dark)}
+.empty-state p{font-size:14px;max-width:280px;text-align:center;line-height:1.6}
+
+/* chat header */
+.chat-header{padding:12px 20px;background:var(--white);border-bottom:1px solid var(--border);display:none;align-items:center;justify-content:space-between}
+.chat-header.show{display:flex}
+.chat-header-left{display:flex;align-items:center;gap:12px}
+.chat-header .av{width:40px;height:40px;border-radius:50%;background:var(--teal-mid);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--teal-dark)}
+.peer-name{font-family:'Syne',sans-serif;font-size:16px;font-weight:700}
+.peer-status{font-size:12px;color:var(--muted)}
+.header-actions{display:flex;gap:8px;align-items:center}
+.session-badge{display:none;align-items:center;gap:6px;background:var(--teal-lt);border:1px solid var(--teal-mid);border-radius:100px;padding:4px 12px;font-size:11px;color:var(--teal);font-family:'DM Mono',monospace}
+.session-badge.show{display:inline-flex}
+.session-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green)}
+.vis-btn{padding:5px 12px;border-radius:100px;border:1px solid var(--teal-mid);background:var(--teal-lt);color:var(--teal);font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;transition:.2s;display:none}
+.vis-btn.show{display:inline-flex;align-items:center;gap:5px}
+.vis-btn:hover{background:var(--teal);color:#fff}
+
+/* crypto strip */
+.crypto-strip{padding:5px 20px;background:var(--dark2);font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,.35);display:none;align-items:center;gap:12px}
+.crypto-strip.show{display:flex}
+.crypto-strip .c{color:var(--teal)}
+
+/* messages */
+.messages{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:8px;background:var(--off)}
+.msg-wrapper{display:flex;flex-direction:column;max-width:70%}
+.msg-wrapper.you{align-self:flex-end;align-items:flex-end}
+.msg-wrapper.them{align-self:flex-start;align-items:flex-start}
+.bubble{padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5;word-break:break-word}
+.you .bubble{background:var(--bubble-you);border-bottom-right-radius:4px;color:var(--dark)}
+.them .bubble{background:var(--bubble-them);border:1px solid var(--border);border-bottom-left-radius:4px}
+.meta{font-size:11px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px}
+.tick{color:var(--teal)}
+.sys-msg{align-self:center;font-size:12px;color:var(--muted);background:rgba(255,255,255,.8);border:1px solid var(--border);border-radius:100px;padding:4px 14px}
+.hist-divider{align-self:center;font-size:11px;color:var(--muted);background:rgba(10,157,174,.06);border:1px solid var(--teal-mid);border-radius:100px;padding:3px 14px;font-family:'DM Mono',monospace}
+
+/* file bubble */
+.file-bubble{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;gap:12px;align-items:center;min-width:200px}
+.you .file-bubble{background:#e8f8e8;border-color:#b8e8b8}
+.file-icon{width:40px;height:40px;border-radius:10px;background:var(--teal-lt);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.file-info .fname{font-size:13px;font-weight:500;color:var(--dark)}
+.file-info .fsize{font-size:11px;color:var(--muted)}
+.file-progress{height:3px;background:var(--border);border-radius:100px;margin-top:6px;overflow:hidden;width:100%}
+.file-progress-bar{height:100%;background:var(--teal);border-radius:100px;transition:.3s;width:0%}
+.download-btn{margin-top:6px;font-size:11px;color:var(--teal);cursor:pointer;text-decoration:underline}
+
+/* typing */
+.typing-dots{display:flex;gap:4px;padding:12px 16px;background:#fff;border:1px solid var(--border);border-radius:12px;border-bottom-left-radius:4px}
+.typing-dots span{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:bounce .6s infinite}
+.typing-dots span:nth-child(2){animation-delay:.15s}
+.typing-dots span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+
+/* input bar */
+.input-bar{padding:10px 14px;background:var(--white);border-top:1px solid var(--border);display:none;align-items:center;gap:8px}
+.input-bar.show{display:flex}
+.file-attach-btn{width:38px;height:38px;border-radius:50%;background:var(--off);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;transition:.2s}
+.file-attach-btn:hover{background:var(--teal-lt);border-color:var(--teal)}
+.msg-input{flex:1;padding:10px 16px;border:1.5px solid var(--border);border-radius:100px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:.2s;background:var(--off)}
+.msg-input:focus{border-color:var(--teal);background:#fff}
+.send-btn{width:42px;height:42px;border-radius:50%;background:var(--teal);border:none;cursor:pointer;color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;transition:.2s;flex-shrink:0}
+.send-btn:hover{background:var(--teal-dark);transform:scale(1.05)}
+.send-btn:disabled{background:var(--teal-mid);cursor:not-allowed;transform:none}
+
+/* handshake overlay */
+.hs-overlay{position:absolute;inset:0;background:rgba(247,250,250,.96);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:20}
+.hs-overlay.show{display:flex}
+.hs-spinner{width:52px;height:52px;border:3px solid var(--teal-mid);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hs-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:700}
+.hs-sub{font-size:12px;color:var(--muted);font-family:'DM Mono',monospace}
+
+/* ══ ENCRYPTION VISUALISER PANEL ══════════════════════════════════ */
+.vis-panel{position:absolute;top:0;right:0;bottom:0;width:380px;background:var(--dark2);border-left:1px solid rgba(10,157,174,.2);display:none;flex-direction:column;z-index:15;overflow:hidden}
+.vis-panel.show{display:flex}
+.vis-hdr{padding:14px 16px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.vis-hdr-left{display:flex;flex-direction:column;gap:3px}
+.vis-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:#fff}
+.vis-dir{font-family:'DM Mono',monospace;font-size:10px;color:var(--teal)}
+.vis-close{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.08);border:none;cursor:pointer;color:rgba(255,255,255,.5);font-size:14px;display:flex;align-items:center;justify-content:center;transition:.2s}
+.vis-close:hover{background:rgba(232,64,64,.2);color:var(--red)}
+
+/* stage pills */
+.vis-stages{display:flex;gap:4px;padding:10px 12px;background:rgba(0,0,0,.2);flex-wrap:wrap;flex-shrink:0}
+.stage-pill{font-family:'DM Mono',monospace;font-size:9px;padding:3px 8px;border-radius:100px;border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.3);transition:.3s;cursor:default}
+.stage-pill.active{background:var(--teal);border-color:var(--teal);color:#fff}
+.stage-pill.done{border-color:rgba(37,211,102,.4);color:var(--green)}
+
+/* rows */
+.vis-body{flex:1;overflow-y:auto;padding:12px}
+.vis-row{margin-bottom:10px}
+.vis-row-label{font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,.3);margin-bottom:3px;letter-spacing:.06em;text-transform:uppercase}
+.vis-row-val{font-family:'DM Mono',monospace;font-size:10px;padding:8px 10px;border-radius:8px;word-break:break-all;line-height:1.5;border:1px solid transparent}
+.vis-plain {background:rgba(37,211,102,.08);border-color:rgba(37,211,102,.2);color:#4ADE80}
+.vis-nonce {background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.2);color:var(--amber)}
+.vis-key   {background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08);color:rgba(255,255,255,.4)}
+.vis-cipher{background:rgba(232,64,64,.08);border-color:rgba(232,64,64,.2);color:#F87171}
+.vis-sig   {background:rgba(83,189,235,.08);border-color:rgba(83,189,235,.2);color:var(--blue)}
+.vis-layout{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08);color:rgba(255,255,255,.4);font-size:9px}
+.vis-ok    {background:rgba(37,211,102,.1);border-color:rgba(37,211,102,.3);color:var(--green)}
+.vis-fail  {background:rgba(232,64,64,.1);border-color:rgba(232,64,64,.3);color:var(--red)}
+.vis-divider{height:1px;background:rgba(255,255,255,.06);margin:8px 0}
+.vis-tick{font-family:'DM Mono',monospace;font-size:10px;color:var(--blue);text-align:right;padding-top:4px}
+.vis-footer{padding:8px 12px;background:rgba(0,0,0,.2);font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,.25);border-top:1px solid rgba(255,255,255,.06);flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo"><span class="logo-dot"></span>CipherChat</div>
+  </div>
+  <div class="sidebar-user">
+    <div class="avatar">{{ username[0].upper() }}</div>
+    <div class="user-info">
+      <div class="name">{{ username }}</div>
+      <div class="you-tag">You · Online</div>
+    </div>
+  </div>
+  <div class="sidebar-section">Online Users</div>
+  <div class="user-list" id="user-list">
+    <div class="no-users" id="no-users">No users online yet.<br>Share the link to invite someone.</div>
+  </div>
+  <div class="logout-btn" id="logout-btn">⎋ Sign out</div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- handshake overlay -->
+  <div class="hs-overlay" id="hs-overlay">
+    <div class="hs-spinner"></div>
+    <div class="hs-title">Establishing Secure Session</div>
+    <div class="hs-sub" id="hs-step">Generating ECDH key pair…</div>
+  </div>
+
+  <!-- empty state -->
+  <div class="empty-state" id="empty-state">
+    <div class="empty-icon">🔒</div>
+    <h3>Select a user to chat</h3>
+    <p>Choose someone from the sidebar to start an end-to-end encrypted conversation.</p>
+  </div>
+
+  <!-- chat header -->
+  <div class="chat-header" id="chat-header">
+    <div class="chat-header-left">
+      <div class="av" id="peer-avatar"></div>
+      <div>
+        <div class="peer-name" id="peer-name"></div>
+        <div class="peer-status" id="peer-status">Online</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="vis-btn" id="vis-toggle-btn" onclick="toggleVisPanel()">🔍 Encryption</button>
+      <div class="session-badge" id="session-badge">E2EE Active</div>
+    </div>
+  </div>
+
+  <!-- crypto strip -->
+  <div class="crypto-strip" id="crypto-strip">
+    <span>ECDH·SECP256R1</span><span>|</span>
+    <span>AES-256-GCM</span><span>|</span>
+    <span>ECDSA·SHA-256</span><span>|</span>
+    <span>Key: <span class="c" id="key-display">—</span></span>
+  </div>
+
+  <!-- messages -->
+  <div class="messages" id="messages"></div>
+
+  <!-- input bar -->
+  <div class="input-bar" id="input-bar">
+    <button class="file-attach-btn" id="file-attach-btn" title="Send file">📎</button>
+    <input type="file" id="file-input" style="display:none">
+    <input class="msg-input" id="msg-input" placeholder="Message (encrypted end-to-end)" autocomplete="off">
+    <button class="send-btn" id="send-btn" disabled>➤</button>
+  </div>
+
+  <!-- Encryption visualiser panel (slides in from right) -->
+  <div class="vis-panel" id="vis-panel">
+    <div class="vis-hdr">
+      <div class="vis-hdr-left">
+        <div class="vis-title">🔍 Live Encryption Pipeline</div>
+        <div class="vis-dir" id="vis-dir">—</div>
+      </div>
+      <button class="vis-close" onclick="toggleVisPanel()">✕</button>
+    </div>
+    <div class="vis-stages" id="vis-stages">
+      <span class="stage-pill" data-s="0">Plaintext</span>
+      <span class="stage-pill" data-s="1">Nonce</span>
+      <span class="stage-pill" data-s="2">AES-GCM</span>
+      <span class="stage-pill" data-s="3">ECDSA</span>
+      <span class="stage-pill" data-s="4">Packet</span>
+      <span class="stage-pill" data-s="5">Verify</span>
+      <span class="stage-pill" data-s="6">Decrypt</span>
+    </div>
+    <div class="vis-body" id="vis-body">
+      <div style="color:rgba(255,255,255,.3);font-size:12px;text-align:center;margin-top:40px;font-family:'DM Mono',monospace">
+        Send or receive a message<br>to see live encryption here
+      </div>
+    </div>
+    <div class="vis-footer" id="vis-footer">Waiting for message…</div>
+  </div>
+
+</div>
+
+<script>
+const ME = "{{ username }}";
+const subtle = window.crypto.subtle;
+
+// ── helpers ───────────────────────────────────────────────────────────
+function buf2b64(buf){return btoa(String.fromCharCode(...new Uint8Array(buf)))}
+function b642buf(b64){const bin=atob(b64);const a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return a.buffer}
+function ab2hex(buf){return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase()}
+function hexShort(h,n=32){return h.slice(0,n)+(h.length>n?'…':'')}
+
+async function genECDH() {return subtle.generateKey({name:'ECDH',namedCurve:'P-256'},true,['deriveKey','deriveBits'])}
+async function genECDSA(){return subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify'])}
+async function exportPub(k){return buf2b64(await subtle.exportKey('spki',k))}
+async function importECDHPub(b64){return subtle.importKey('spki',b642buf(b64),{name:'ECDH',namedCurve:'P-256'},true,[])}
+async function importECDSAPub(b64){return subtle.importKey('spki',b642buf(b64),{name:'ECDSA',namedCurve:'P-256'},true,['verify'])}
+async function deriveAES(myPriv,peerPub){
+  const bits=await subtle.deriveBits({name:'ECDH',public:peerPub},myPriv,256);
+  return subtle.importKey('raw',bits,{name:'AES-GCM'},true,['encrypt','decrypt']);
+}
+async function getKeyHex(k){return ab2hex(await subtle.exportKey('raw',k))}
+async function aesEncrypt(k,plain){
+  const nonce=window.crypto.getRandomValues(new Uint8Array(12));
+  const ct=await subtle.encrypt({name:'AES-GCM',iv:nonce},k,new TextEncoder().encode(plain));
+  return{nonce:buf2b64(nonce),ciphertext:buf2b64(ct)};
+}
+async function aesEncryptBuf(k,buf){
+  const nonce=window.crypto.getRandomValues(new Uint8Array(12));
+  const ct=await subtle.encrypt({name:'AES-GCM',iv:nonce},k,buf);
+  return{nonce:buf2b64(nonce),ciphertext:buf2b64(ct)};
+}
+async function aesDecrypt(k,nonceB64,ctB64){
+  return new TextDecoder().decode(await subtle.decrypt({name:'AES-GCM',iv:b642buf(nonceB64)},k,b642buf(ctB64)));
+}
+async function aesDecryptBuf(k,nonceB64,ctB64){
+  return await subtle.decrypt({name:'AES-GCM',iv:b642buf(nonceB64)},k,b642buf(ctB64));
+}
+async function ecdsaSign(priv,ctB64){return buf2b64(await subtle.sign({name:'ECDSA',hash:'SHA-256'},priv,b642buf(ctB64)))}
+async function ecdsaVerify(pub,sigB64,ctB64){
+  try{return await subtle.verify({name:'ECDSA',hash:'SHA-256'},pub,b642buf(sigB64),b642buf(ctB64))}catch{return false}
+}
+
+// ── state ─────────────────────────────────────────────────────────────
+let socket, onlineUsers=[], activePeer=null;
+let sessions={};      // peer -> {aesKey, myECDSAPriv, peerECDSAPub, keyHex}
+let myPendingOffer=null;
+let visPanelOpen=false;
+let incomingFiles={};  // peer -> {meta, chunks[], received}
+
+// ── visualiser ────────────────────────────────────────────────────────
+function toggleVisPanel(){
+  visPanelOpen=!visPanelOpen;
+  document.getElementById('vis-panel').classList.toggle('show',visPanelOpen);
+  document.getElementById('vis-toggle-btn').textContent=visPanelOpen?'✕ Close':'🔍 Encryption';
+}
+
+function setStage(i){
+  document.querySelectorAll('.stage-pill').forEach((p,k)=>{
+    p.classList.remove('active','done');
+    if(k<i) p.classList.add('done');
+    else if(k===i) p.classList.add('active');
+  });
+}
+
+function visRow(label,valClass,value){
+  return `<div class="vis-row"><div class="vis-row-label">${label}</div><div class="vis-row-val ${valClass}">${escHtml(String(value))}</div></div>`;
+}
+
+async function runVisualiser(direction, plaintext, nonce, ctB64, sigB64, keyHex, verified, recovered){
+  const body=document.getElementById('vis-body');
+  const footer=document.getElementById('vis-footer');
+  const dir=document.getElementById('vis-dir');
+  dir.textContent = direction==='SEND' ? '↑ Sending' : '↓ Receiving';
+  dir.style.color = direction==='SEND' ? '#0A9DAE' : '#A78BFA';
+  body.innerHTML='';
+  footer.textContent='Animating…';
+  const D=320; // ms per stage
+
+  const stages=[
+    ()=>{
+      setStage(0);
+      const pb=new TextEncoder().encode(plaintext);
+      body.innerHTML+=visRow('plaintext','vis-plain',plaintext);
+      body.innerHTML+=visRow('byte length','vis-key',pb.length+' bytes');
+      body.scrollTop=body.scrollHeight;
+    },
+    ()=>{
+      setStage(1);
+      body.innerHTML+=`<div class="vis-divider"></div>`;
+      body.innerHTML+=visRow('nonce (12 random bytes)','vis-nonce',hexShort(ab2hex(b642buf(nonce))));
+      body.scrollTop=body.scrollHeight;
+    },
+    ()=>{
+      setStage(2);
+      body.innerHTML+=`<div class="vis-divider"></div>`;
+      body.innerHTML+=visRow('session key (AES-256)','vis-key',hexShort(keyHex,24)+'…');
+      body.innerHTML+=visRow('ciphertext + GCM tag','vis-cipher',hexShort(ab2hex(b642buf(ctB64))));
+      body.scrollTop=body.scrollHeight;
+    },
+    ()=>{
+      setStage(3);
+      body.innerHTML+=`<div class="vis-divider"></div>`;
+      body.innerHTML+=visRow('ECDSA signature (over ciphertext)','vis-sig',hexShort(ab2hex(b642buf(sigB64)),64));
+      body.scrollTop=body.scrollHeight;
+    },
+    ()=>{
+      setStage(4);
+      const ctLen=b642buf(ctB64).byteLength;
+      const sigLen=b642buf(sigB64).byteLength;
+      const layout=`[4B len][1B type][12B nonce][2B sig_len][${sigLen}B sig][${ctLen}B ct+tag]`;
+      body.innerHTML+=`<div class="vis-divider"></div>`;
+      body.innerHTML+=visRow('packet on the wire','vis-layout',layout);
+      body.scrollTop=body.scrollHeight;
+    },
+    ()=>{
+      setStage(5);
+      body.innerHTML+=`<div class="vis-divider"></div>`;
+      if(verified){
+        body.innerHTML+=visRow('signature verify','vis-ok','✓  Valid — authenticated');
+      } else {
+        body.innerHTML+=visRow('signature verify','vis-fail','✗  Invalid — packet rejected');
+      }
+      body.scrollTop=body.scrollHeight;
+    },
+    ()=>{
+      setStage(6);
+      body.innerHTML+=`<div class="vis-divider"></div>`;
+      if(recovered){
+        body.innerHTML+=visRow('recovered plaintext','vis-ok','✓  "'+recovered+'"');
+        if(direction==='RECV') body.innerHTML+=`<div class="vis-tick">✓✓</div>`;
+      } else {
+        body.innerHTML+=visRow('decryption','vis-fail','✗  Blocked');
+      }
+      body.scrollTop=body.scrollHeight;
+      document.querySelectorAll('.stage-pill').forEach(p=>{p.classList.remove('active');p.classList.add('done');});
+      footer.textContent='Complete · '+new Date().toLocaleTimeString();
+    }
+  ];
+
+  for(let i=0;i<stages.length;i++){
+    await new Promise(r=>setTimeout(r,i===0?0:D));
+    stages[i]();
+  }
+}
+
+// ── socket ────────────────────────────────────────────────────────────
+function initSocket(){
+  socket=io();
+  socket.on('connect',()=>console.log('connected'));
+
+  socket.on('online_list',({users})=>{onlineUsers=users;renderUserList()});
+  socket.on('user_online',({username})=>{
+    if(!onlineUsers.includes(username))onlineUsers.push(username);
+    renderUserList();
+    if(username!==ME) sysMsg(username+' came online');
+  });
+  socket.on('user_offline',({username})=>{
+    onlineUsers=onlineUsers.filter(u=>u!==username);
+    renderUserList();
+    sysMsg(username+' went offline');
+    if(activePeer===username){
+      document.getElementById('peer-status').textContent='Offline';
+      document.getElementById('send-btn').disabled=true;
+    }
+  });
+
+  // key exchange
+  socket.on('key_offer',async({from,ecdh_pub,ecdsa_pub})=>{
+    try{
+      const myECDH=await genECDH(),myECDSA=await genECDSA();
+      const theirECDH=await importECDHPub(ecdh_pub);
+      const theirECDSA=await importECDSAPub(ecdsa_pub);
+      const aesKey=await deriveAES(myECDH.privateKey,theirECDH);
+      const keyHex=await getKeyHex(aesKey);
+      sessions[from]={aesKey,myECDSAPriv:myECDSA.privateKey,peerECDSAPub:theirECDSA,keyHex};
+      socket.emit('key_answer',{to:from,ecdh_pub:await exportPub(myECDH.publicKey),ecdsa_pub:await exportPub(myECDSA.publicKey)});
+      if(activePeer===from){setHsStep('Session established!');setTimeout(()=>{showHs(false);sessionReady(from,keyHex)},400);}
+      else{
+        activePeer=from;
+        document.getElementById('empty-state').style.display='none';
+        document.getElementById('chat-header').classList.add('show');
+        document.getElementById('input-bar').classList.add('show');
+        document.getElementById('peer-name').textContent=from;
+        document.getElementById('peer-avatar').textContent=from[0].toUpperCase();
+        renderUserList();
+        setHsStep('Session established!');
+        setTimeout(()=>{showHs(false);sessionReady(from,keyHex);loadHistory(from);},400);
+      }
+    }catch(e){console.error(e);showHs(false);}
+  });
+
+  socket.on('key_answer',async({from,ecdh_pub,ecdsa_pub})=>{
+    if(!myPendingOffer||myPendingOffer.peer!==from)return;
+    try{
+      const theirECDH=await importECDHPub(ecdh_pub);
+      const theirECDSA=await importECDSAPub(ecdsa_pub);
+      const aesKey=await deriveAES(myPendingOffer.ecdhKP.privateKey,theirECDH);
+      const keyHex=await getKeyHex(aesKey);
+      sessions[from]={aesKey,myECDSAPriv:myPendingOffer.ecdsaKP.privateKey,peerECDSAPub:theirECDSA,keyHex};
+      myPendingOffer=null;
+      if(activePeer===from){setHsStep('Session established!');setTimeout(()=>{showHs(false);sessionReady(from,keyHex);loadHistory(from);},400);}
+    }catch(e){console.error(e);showHs(false);}
+  });
+
+  // text message
+  socket.on('encrypted_msg',async({from,nonce,sig,ciphertext,ts})=>{
+    const sess=sessions[from];
+    if(!sess)return;
+    const valid=await ecdsaVerify(sess.peerECDSAPub,sig,ciphertext);
+    if(!valid){console.warn('bad sig');return;}
+    try{
+      const plain=await aesDecrypt(sess.aesKey,nonce,ciphertext);
+      if(activePeer===from) appendMsg(plain,'them',ts);
+      // receiver does NOT save — sender already saved with both sender+recipient fields
+      if(visPanelOpen) runVisualiser('RECV',plain,nonce,ciphertext,sig,
+        hexShort(sess.keyHex,32),true,plain);
+    }catch(e){console.error(e);}
+  });
+
+  // file meta
+  socket.on('file_meta',async({from,nonce,sig,ciphertext,filename,size,total_chunks,ts})=>{
+    const sess=sessions[from];
+    if(!sess)return;
+    const valid=await ecdsaVerify(sess.peerECDSAPub,sig,ciphertext);
+    if(!valid)return;
+    incomingFiles[from]={filename,size,totalChunks:total_chunks,chunks:[],received:0};
+    if(activePeer===from){
+      appendFileMsg(from,filename,size,'them',null);
+    }
+  });
+
+  // file chunk
+  socket.on('file_chunk',async({from,chunk_idx,total,nonce,sig,ciphertext})=>{
+    const sess=sessions[from];
+    if(!sess||!incomingFiles[from])return;
+    const valid=await ecdsaVerify(sess.peerECDSAPub,sig,ciphertext);
+    if(!valid)return;
+    const chunk=await aesDecryptBuf(sess.aesKey,nonce,ciphertext);
+    const info=incomingFiles[from];
+    info.chunks[chunk_idx]=chunk;
+    info.received++;
+    const pct=Math.round(info.received/total*100);
+    updateFileProgress(from,pct);
+    if(info.received>=total){
+      finaliseFile(from);
+    }
+  });
+
+  socket.on('file_done',({from,filename})=>{
+    console.log('File done from',from,filename);
+  });
+
+  socket.on('typing',({from})=>{if(activePeer===from)showTyping(true);});
+  socket.on('stop_typing',({from})=>{if(activePeer===from)showTyping(false);});
+}
+
+// ── history ────────────────────────────────────────────────────────────
+async function loadHistory(peer){
+  // guard: prevent double load
+  if(document.getElementById('hist-loaded-'+peer)) return;
+  const guard=document.createElement('div');
+  guard.id='hist-loaded-'+peer;
+  guard.style.display='none';
+  document.getElementById('messages').appendChild(guard);
+
+  try{
+    const res=await fetch('/api/history/'+encodeURIComponent(peer));
+    const data=await res.json();
+    if(!data.messages||data.messages.length===0) return;
+
+    // insert history BEFORE the current session system message
+    const msgs=document.getElementById('messages');
+    const refNode=msgs.firstChild; // insert at top
+
+    const divTop=document.createElement('div');
+    divTop.className='hist-divider';divTop.textContent='Previous session';
+    msgs.insertBefore(divTop,refNode);
+
+    for(const m of data.messages){
+      const who=m.from===ME?'you':'them';
+      const wrap=document.createElement('div');
+      wrap.className='msg-wrapper '+who;
+      wrap.style.opacity='0.55';
+
+      if(m.type==='file'){
+        const fname=m.filename||m.content||'file';
+        wrap.innerHTML=`
+          <div class="bubble">
+            <div class="file-bubble">
+              <div class="file-icon">📄</div>
+              <div class="file-info">
+                <div class="fname">${escHtml(fname)}</div>
+                <div class="fsize">Previously transferred</div>
+              </div>
+            </div>
+          </div>
+          <div class="meta"><span>${m.ts?m.ts.slice(11,16):''}</span></div>`;
+      } else if(m.content){
+        const time=m.ts?m.ts.slice(11,16):'';
+        wrap.innerHTML=`
+          <div class="bubble">${escHtml(m.content)}</div>
+          <div class="meta"><span>${time}</span>${who==='you'?'<span class="tick">✓✓</span>':''}</div>`;
+      } else { continue; }
+
+      msgs.insertBefore(wrap, refNode);
+    }
+
+    const divBot=document.createElement('div');
+    divBot.className='hist-divider';divBot.textContent='Today';
+    msgs.insertBefore(divBot,refNode);
+
+  }catch(e){console.error('History load failed',e);}
+}
+
+// ── UI ─────────────────────────────────────────────────────────────────
+function renderUserList(){
+  const list=document.getElementById('user-list');
+  const noEl=document.getElementById('no-users');
+  const others=onlineUsers.filter(u=>u!==ME);
+  if(others.length===0){list.innerHTML='';list.appendChild(noEl);noEl.style.display='block';return;}
+  list.innerHTML='';
+  others.forEach(u=>{
+    const el=document.createElement('div');
+    el.className='user-item'+(activePeer===u?' active':'');
+    el.innerHTML=`<div class="av">${u[0].toUpperCase()}<span class="online-dot"></span></div><div><div class="uname">${escHtml(u)}</div><div class="status">${sessions[u]?'🔒 Secure':'Tap to chat'}</div></div>`;
+    el.onclick=()=>selectPeer(u);
+    list.appendChild(el);
+  });
+}
+
+async function selectPeer(peer){
+  activePeer=peer;
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('chat-header').classList.add('show');
+  document.getElementById('input-bar').classList.add('show');
+  document.getElementById('messages').innerHTML='';
+  document.getElementById('peer-name').textContent=peer;
+  document.getElementById('peer-avatar').textContent=peer[0].toUpperCase();
+  document.getElementById('peer-status').textContent='Online';
+  document.getElementById('session-badge').classList.remove('show');
+  document.getElementById('send-btn').disabled=true;
+  renderUserList();
+
+  if(sessions[peer]){sessionReady(peer,sessions[peer].keyHex);loadHistory(peer);return;}
+  if(myPendingOffer&&myPendingOffer.peer===peer){showHs(true);setHsStep('Waiting for peer…');return;}
+  await sendOffer(peer);
+}
+
+async function sendOffer(peer){
+  showHs(true);setHsStep('Generating ECDH key pair…');
+  try{
+    const ecdhKP=await genECDH(),ecdsaKP=await genECDSA();
+    myPendingOffer={peer,ecdhKP,ecdsaKP};
+    setHsStep('Sending public keys…');
+    socket.emit('key_offer',{to:peer,ecdh_pub:await exportPub(ecdhKP.publicKey),ecdsa_pub:await exportPub(ecdsaKP.publicKey)});
+    setHsStep('Waiting for peer…');
+  }catch(e){console.error(e);showHs(false);}
+}
+
+function sessionReady(peer,keyHex){
+  showHs(false);
+  document.getElementById('session-badge').classList.add('show');
+  document.getElementById('vis-toggle-btn').classList.add('show');
+  document.getElementById('crypto-strip').classList.add('show');
+  document.getElementById('key-display').textContent=hexShort(keyHex,16)+'…';
+  document.getElementById('send-btn').disabled=false;
+  sysMsg('🔒 End-to-end encrypted session active');
+}
+
+function showHs(s){document.getElementById('hs-overlay').classList.toggle('show',s);}
+function setHsStep(t){document.getElementById('hs-step').textContent=t;}
+
+// ── messages ───────────────────────────────────────────────────────────
+function appendMsg(text,who,ts,isHistory=false){
+  const msgs=document.getElementById('messages');
+  const time=ts?new Date(ts+'Z').toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  const wrap=document.createElement('div');
+  wrap.className='msg-wrapper '+who;
+  if(isHistory) wrap.style.opacity='0.55';
+  wrap.innerHTML=`<div class="bubble">${escHtml(text)}</div><div class="meta"><span>${time}</span>${who==='you'?'<span class="tick">✓✓</span>':''}</div>`;
+  msgs.appendChild(wrap);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function addDivider(label){
+  const msgs=document.getElementById('messages');
+  const el=document.createElement('div');
+  el.className='hist-divider';el.textContent=label;
+  msgs.appendChild(el);
+}
+
+function appendFileMsg(from,filename,size,who,fileData,isHistory=false){
+  const msgs=document.getElementById('messages');
+  const wrap=document.createElement('div');
+  wrap.className='msg-wrapper '+who;
+  wrap.id='file-msg-'+from+'-'+filename.replace(/\W/g,'');
+  if(isHistory) wrap.style.opacity='0.55';
+  const sizeStr=size>0?formatBytes(size):'';
+  wrap.innerHTML=`
+    <div class="bubble">
+      <div class="file-bubble">
+        <div class="file-icon">📄</div>
+        <div class="file-info" style="flex:1">
+          <div class="fname">${escHtml(filename)}</div>
+          <div class="fsize">${sizeStr}</div>
+          ${!isHistory?`<div class="file-progress"><div class="file-progress-bar" id="fpb-${from}-${filename.replace(/\W/g,'')}"></div></div>`:''}
+          ${fileData?`<div class="download-btn" onclick="downloadFile('${filename}',this)" data-file="${fileData}">⬇ Download</div>`:''}
+        </div>
+      </div>
+    </div>
+    <div class="meta"><span>${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>${who==='you'?'<span class="tick">✓✓</span>':''}</div>`;
+  msgs.appendChild(wrap);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function updateFileProgress(from,pct){
+  const key=from+'-'+((incomingFiles[from]||{}).filename||'').replace(/\W/g,'');
+  const bar=document.getElementById('fpb-'+key);
+  if(bar) bar.style.width=pct+'%';
+}
+
+function finaliseFile(from){
+  const info=incomingFiles[from];
+  if(!info)return;
+  const combined=new Uint8Array(info.chunks.reduce((acc,c)=>acc+c.byteLength,0));
+  let offset=0;
+  info.chunks.forEach(c=>{combined.set(new Uint8Array(c),offset);offset+=c.byteLength;});
+  const blob=new Blob([combined]);
+  const url=URL.createObjectURL(blob);
+  const key=from+'-'+info.filename.replace(/\W/g,'');
+  const bar=document.getElementById('fpb-'+key);
+  if(bar){bar.style.width='100%';bar.style.background='var(--green)';}
+  const wrap=document.getElementById('file-msg-'+from+'-'+info.filename.replace(/\W/g,''));
+  if(wrap){
+    const dl=document.createElement('a');
+    dl.href=url;dl.download=info.filename;
+    dl.className='download-btn';dl.textContent='⬇ Download';
+    wrap.querySelector('.file-info').appendChild(dl);
+  }
+  // receiver does NOT save file history — sender already saved it
+  delete incomingFiles[from];
+  sysMsg('📄 File received: '+info.filename);
+}
+
+function downloadFile(filename,el){
+  const url=el.dataset.file;
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();
+}
+
+function formatBytes(b){if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(1)+' KB';return (b/1048576).toFixed(1)+' MB';}
+
+function sysMsg(text){
+  const msgs=document.getElementById('messages');
+  const el=document.createElement('div');
+  el.className='sys-msg';el.textContent=text;
+  msgs.appendChild(el);msgs.scrollTop=msgs.scrollHeight;
+}
+
+let typingTimeout;
+function showTyping(show){
+  const existing=document.getElementById('typing-el');
+  if(show&&!existing){
+    const msgs=document.getElementById('messages');
+    const el=document.createElement('div');
+    el.id='typing-el';el.className='msg-wrapper them';
+    el.innerHTML='<div class="typing-dots"><span></span><span></span><span></span></div>';
+    msgs.appendChild(el);msgs.scrollTop=msgs.scrollHeight;
+  }else if(!show&&existing)existing.remove();
+}
+
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ── send text ─────────────────────────────────────────────────────────
+async function sendMessage(){
+  const input=document.getElementById('msg-input');
+  const text=input.value.trim();
+  if(!text||!activePeer||!sessions[activePeer])return;
+  input.value='';
+  socket.emit('stop_typing',{to:activePeer});
+  const sess=sessions[activePeer];
+  try{
+    const{nonce,ciphertext}=await aesEncrypt(sess.aesKey,text);
+    const sig=await ecdsaSign(sess.myECDSAPriv,ciphertext);
+    socket.emit('encrypted_msg',{to:activePeer,nonce,sig,ciphertext});
+    appendMsg(text,'you',null);
+    // save plaintext to history
+    fetch('/api/save_message',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({to:activePeer,content:text,type:'text'})});
+    if(visPanelOpen) runVisualiser('SEND',text,nonce,ciphertext,sig,
+      hexShort(sess.keyHex,32),true,text);
+  }catch(e){console.error(e);}
+}
+
+// ── send file ─────────────────────────────────────────────────────────
+const CHUNK=4096;
+
+async function sendFile(file){
+  if(!activePeer||!sessions[activePeer])return;
+  const sess=sessions[activePeer];
+  const totalChunks=Math.ceil(file.size/CHUNK);
+
+  // send metadata
+  const metaJson=JSON.stringify({name:file.name,size:file.size,total_chunks:totalChunks});
+  const{nonce:mn,ciphertext:mc}=await aesEncrypt(sess.aesKey,metaJson);
+  const ms=await ecdsaSign(sess.myECDSAPriv,mc);
+  socket.emit('file_meta',{to:activePeer,nonce:mn,sig:ms,ciphertext:mc,filename:file.name,size:file.size,total_chunks:totalChunks});
+
+  appendFileMsg(ME,file.name,file.size,'you',null);
+
+  // read and send chunks
+  const fileKey='me-'+file.name.replace(/\W/g,'');
+  for(let i=0;i<totalChunks;i++){
+    const start=i*CHUNK,end=Math.min(start+CHUNK,file.size);
+    const chunkBuf=await file.slice(start,end).arrayBuffer();
+    const{nonce:cn,ciphertext:cc}=await aesEncryptBuf(sess.aesKey,chunkBuf);
+    const cs=await ecdsaSign(sess.myECDSAPriv,cc);
+    socket.emit('file_chunk',{to:activePeer,chunk_idx:i,total:totalChunks,nonce:cn,sig:cs,ciphertext:cc});
+    const bar=document.getElementById('fpb-me-'+file.name.replace(/\W/g,''));
+    if(bar) bar.style.width=Math.round((i+1)/totalChunks*100)+'%';
+  }
+  socket.emit('file_done',{to:activePeer,filename:file.name});
+  fetch('/api/save_message',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({to:activePeer,content:'📄 '+file.name,type:'file',filename:file.name})});
+  sysMsg('📄 File sent: '+file.name);
+}
+
+// ── events ────────────────────────────────────────────────────────────
+document.getElementById('msg-input').addEventListener('input',()=>{
+  if(!activePeer)return;
+  socket.emit('typing',{to:activePeer});
+  clearTimeout(typingTimeout);
+  typingTimeout=setTimeout(()=>socket.emit('stop_typing',{to:activePeer}),1500);
+});
+document.getElementById('msg-input').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}
+});
+document.getElementById('send-btn').addEventListener('click',sendMessage);
+document.getElementById('logout-btn').addEventListener('click',async()=>{
+  await fetch('/api/logout',{method:'POST'});window.location.href='/';
+});
+document.getElementById('file-attach-btn').addEventListener('click',()=>{
+  document.getElementById('file-input').click();
+});
+document.getElementById('file-input').addEventListener('change',e=>{
+  const file=e.target.files[0];
+  if(file) sendFile(file);
+  e.target.value='';
+});
+
+// ── boot ──────────────────────────────────────────────────────────────
+initSocket();
+</script>
+</body>
+</html>
