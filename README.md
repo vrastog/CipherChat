@@ -29,21 +29,21 @@ Open `http://localhost:5002`
 
 ## How to Use
 
-1. Register two accounts in different browsers
-2. Click a username in the sidebar
-3. ECDH handshake runs automatically
-4. Start chatting — everything is encrypted
+1. Register two accounts in different browsers.
+2. Click a username in the sidebar.
+3. ECDH handshake runs automatically.
+4. Start chatting where everything is encrypted.
 
 ---
 
 ## Features
 
 - AES-256-GCM encryption + ECDSA signatures in the browser (WebCrypto API)
-- Live encryption visualiser — click the 🔍 button to watch messages encrypt in real time
+- Live encryption visualiser- click the button to watch messages encrypt in real time
 - Encrypted file transfer with progress bar
 - Message history loaded on startup
 - Typing indicators + online presence
-- Zero-knowledge server — only relays encrypted blobs
+- Zero-knowledge server, only relays encrypted blobs
 
 ---
 
@@ -61,4 +61,4 @@ http://192.168.x.x:5002
 
 ---
 
-*Server sees only ciphertext — never plaintext.*
+*Server sees only ciphertext, never plaintext.*
