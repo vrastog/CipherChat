@@ -2,7 +2,7 @@
 
 End-to-end encrypted browser-based chat. The server never sees your messages.
 
----
+
 
 ## Setup
 
